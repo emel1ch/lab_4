@@ -81,6 +81,8 @@ namespace Основнаяработа { // Проверьте, что это имя совпадает с именем вашего п
     private: System::Windows::Forms::DataGridView^ dataGridView1;
     private: System::Windows::Forms::OpenFileDialog^ openFileDialog1;
     private: System::Windows::Forms::SaveFileDialog^ saveFileDialog1;
+    private: System::Windows::Forms::StatusStrip^ statusStrip1;
+    private: System::Windows::Forms::ToolStripStatusLabel^ statsLabel;
     private: System::ComponentModel::Container^ components;
 
 #pragma region Windows Form Designer generated code
@@ -221,6 +223,27 @@ namespace Основнаяработа { // Проверьте, что это имя совпадает с именем вашего п
                this->menuStrip1->ResumeLayout(false);
                this->menuStrip1->PerformLayout();
                this->ResumeLayout(false);
+               // Внутри InitializeComponent(void)
+
+// 1. Создаем объекты
+               this->statusStrip1 = (gcnew System::Windows::Forms::StatusStrip());
+               this->statsLabel = (gcnew System::Windows::Forms::ToolStripStatusLabel());
+
+               // 2. Настраиваем statusStrip (панель внизу)
+               this->statusStrip1->Items->AddRange(gcnew cli::array< System::Windows::Forms::ToolStripItem^ >(1) { this->statsLabel });
+               this->statusStrip1->Location = System::Drawing::Point(0, 414);
+               this->statusStrip1->Name = L"statusStrip1";
+               this->statusStrip1->Size = System::Drawing::Size(631, 22);
+               this->statusStrip1->TabIndex = 2;
+               this->statusStrip1->Text = L"statusStrip1";
+
+               // 3. Настраиваем statsLabel (текст)
+               this->statsLabel->Name = L"statsLabel";
+               this->statsLabel->Size = System::Drawing::Size(118, 17);
+               this->statsLabel->Text = L"Статистика...";
+
+               // 4. Добавляем на форму
+               this->Controls->Add(this->statusStrip1);
                this->PerformLayout();
 
            }
@@ -230,12 +253,29 @@ namespace Основнаяработа { // Проверьте, что это имя совпадает с именем вашего п
 
            void UpdateGrid() {
                dataGridView1->Rows->Clear();
+
+               // Переменная для подсчета общей суммы
+               double totalSum = 0.0;
+
                for (int i = 0; i < db->size(); i++) {
                    RegularDepositor& dep = db->at(i);
                    String^ name = dep.getNameNet();
-                   String^ amount = dep.getAmount().ToString();
-                   dataGridView1->Rows->Add(name, amount);
+
+                   // Получаем сумму
+                   double amount = dep.getAmount();
+
+                   // Добавляем к общей сумме
+                   totalSum += amount;
+
+                   String^ amountStr = amount.ToString();
+                   dataGridView1->Rows->Add(name, amountStr);
                }
+
+               // Обновляем статистику внизу окна
+               // db->size() - это количество людей
+               // "N2" форматирует число красиво (два знака после запятой)
+               this->statsLabel->Text = "Вкладчиков: " + db->size() +
+                   " | Общая сумма: " + totalSum.ToString("N2") + " руб.";
            }
 
            // 1. ДОБАВИТЬ
@@ -328,7 +368,7 @@ namespace Основнаяработа { // Проверьте, что это имя совпадает с именем вашего п
                    std::string filename = SystemToStdString(saveFileDialog1->FileName);                   std::ofstream out(filename);
                    if (out.is_open()) {
                        for (int i = 0; i < db->size(); i++) {
-                           out << db->at(i).getName() << " " << db->at(i).getAmount() << "\n";
+                           out << db->at(i).getName() << ";" << db->at(i).getAmount() << "\n";
                        }
                        out.close();
                        MessageBox::Show("Сохранено!");
@@ -354,14 +394,27 @@ namespace Основнаяработа { // Проверьте, что это имя совпадает с именем вашего п
 
                    std::ifstream in(filename);
                    if (in.is_open()) {
-                       db->clear(); // Очищаем текущий список перед загрузкой
-                       std::string name;
-                       double amount;
+                       db->clear(); // Очищаем список
 
-                       // Читаем файл построчно
-                       while (in >> name >> amount) {
-                           db->push_back(RegularDepositor(name, amount));
+                       std::string lineName;
+                       double lineAmount;
+
+                       // 1. Читаем строку из файла до символа ';' и кладем в lineName
+                       while (std::getline(in, lineName, ';')) {
+
+                           // 2. Сразу после этого пытаемся считать число
+                           if (in >> lineAmount) {
+
+                               // Добавляем в вектор
+                               db->push_back(RegularDepositor(lineName, lineAmount));
+
+                               // ВАЖНО: После числа в файле остался символ переноса строки (\n).
+                               // Его нужно "съесть", чтобы перейти к следующей записи.
+                               std::string dummy;
+                               std::getline(in, dummy);
+                           }
                        }
+
                        in.close();
                        UpdateGrid();
                        MessageBox::Show("Данные успешно загружены из текстового файла!", "Успех");
